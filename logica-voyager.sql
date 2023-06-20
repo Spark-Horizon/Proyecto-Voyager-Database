@@ -1,6 +1,7 @@
   -- ################## PROCEDIMIENTOS ##################
   -- ================== INSERCIONES ==================
-  -- Procedimiento para crear una nueva materia
+
+  -- Agregar una nueva materia
 CREATE OR REPLACE PROCEDURE agregarMateria(IN id_materia VARCHAR(20), IN nombre_materia TEXT)
 LANGUAGE plpgsql
 AS $$
@@ -11,7 +12,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo tema
+  -- Agregar un nuevo tema
 CREATE OR REPLACE PROCEDURE agregarTema(IN id_tema VARCHAR(20), IN nombre_tema TEXT, IN id_materia_tema VARCHAR(20))
 LANGUAGE plpgsql
 AS $$
@@ -22,7 +23,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo subtema
+  -- Agregar un nuevo subtema
 CREATE OR REPLACE PROCEDURE agregarSubtema(IN id_subtema VARCHAR(20), IN nombre_subtema TEXT, IN racha_codigo_subtema INTEGER, IN requeridos_codigo_subtema INTEGER, IN racha_om_subtema INTEGER, IN requeridos_om_subtema INTEGER, IN id_tema_subtema VARCHAR(20))
 LANGUAGE plpgsql
 AS $$
@@ -33,7 +34,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo docente
+  -- Agregar un nuevo docente
 CREATE OR REPLACE PROCEDURE agregarDocente(IN id_docente VARCHAR(10), IN nombre_docente TEXT, IN apellido1_docente TEXT, IN apellido2_docente TEXT)
 LANGUAGE plpgsql
 AS $$
@@ -44,7 +45,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo estudiante
+  -- Agregar un nuevo estudiante
 CREATE OR REPLACE PROCEDURE agregarEstudiante(IN id_estudiante VARCHAR(10), IN nombre_estudiante TEXT, IN apellido1_estudiante TEXT, IN apellido2_estudiante TEXT)
 LANGUAGE plpgsql
 AS $$
@@ -55,7 +56,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo grupo
+  -- Agregar un nuevo grupo
 CREATE OR REPLACE PROCEDURE agregarGrupo(IN visible_grupo BOOLEAN, IN id_materia_grupo VARCHAR(20), IN id_docente_grupo VARCHAR(10))
 LANGUAGE plpgsql
 AS $$
@@ -69,8 +70,8 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo ejercicio
-CREATE OR REPLACE PROCEDURE agregarEjercicio(IN autorizado_ejercicio BOOLEAN, IN tipo_ejercicio TEXT, IN archivo_ejercicio JSON, id_subtema_ejercicio VARCHAR(20))
+  -- Agregar un nuevo ejercicio
+CREATE OR REPLACE PROCEDURE agregarEjercicio(IN autorizado_ejercicio BOOLEAN, IN tipo_ejercicio TEXT, IN archivo_ejercicio JSON, id_subtema_ejercicio VARCHAR(20), id_autor_ejercicio VARCHAR(10))
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -91,13 +92,13 @@ BEGIN
     EXECUTE 'SELECT nextval(' || quote_literal(nombe_secuencia) ||')'
     INTO numero_ejercicio;
     id_ejercicio := nombe_secuencia || '_' || numero_ejercicio;
-    INSERT INTO ejercicios (id, autorizado, tipo, archivo, id_subtema)
-    VALUES (id_ejercicio, autorizado_ejercicio, tipo_ejercicio, archivo_ejercicio, id_subtema_ejercicio);
+    INSERT INTO ejercicios (id, autorizado, tipo, archivo, id_subtema, id_autor)
+    VALUES (id_ejercicio, autorizado_ejercicio, tipo_ejercicio, archivo_ejercicio, id_subtema_ejercicio, id_autor_ejercicio);
     COMMIT;
 END;
 $$;
 
-  -- Procedimiento para crear una nueva actividad
+  -- Agregar una nueva actividad
 CREATE OR REPLACE PROCEDURE agregarActividad(IN titulo_actividad TEXT, IN inicio_actividad TIMESTAMP, IN fin_actividad TIMESTAMP, IN intentos_actividad INT, IN bloqueo_actividad BOOLEAN, IN disponible_actividad BOOLEAN, IN visible_actividad BOOLEAN, IN id_grupo_actividad INTEGER)
 LANGUAGE plpgsql
 AS $$
@@ -108,7 +109,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para crear un nuevo intento
+  -- Agregar un nuevo intento
 CREATE OR REPLACE PROCEDURE agregarIntento(IN id_estudiante_intento VARCHAR(10), IN id_actividad_intento INTEGER)
 LANGUAGE plpgsql
 AS $$
@@ -119,7 +120,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para agregar un nuevo cambio de pestaña
+  -- Agregar un nuevo cambio de pestaña
 CREATE OR REPLACE PROCEDURE agregarCambio(IN id_intento_cambio INTEGER)
 LANGUAGE plpgsql
 AS $$
@@ -130,7 +131,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para relacionar un estudiante con un ejercicio
+  -- Agregar una nueva pŕactica
 CREATE OR REPLACE PROCEDURE agregarPractica(IN id_estudiante_nuevo VARCHAR(10), IN id_ejercicio_nuevo VARCHAR(20))
 LANGUAGE plpgsql
 AS $$
@@ -173,8 +174,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para relacionar un estudiante con un ejercicio al azar de un subtema
-
+  -- Asignar un ejercicio de práctica a un estudiante de un subtema y tipo específicos (como parte de su ruta de aprendizaje)
 CREATE OR REPLACE PROCEDURE agregarPracticaRandRuta(IN id_estudiante_nuevo VARCHAR(10), IN id_subtema_nuevo VARCHAR(20), IN tipo_ejercicio TEXT)
 LANGUAGE plpgsql
 AS $$
@@ -198,7 +198,20 @@ BEGIN
       e.tipo = tipo_ejercicio AND 
       e.id_subtema = id_subtema_nuevo) AS tabla_ejercicios
       OFFSET floor(random() * 
-      (SELECT COUNT(*) FROM (SELECT id FROM ejercicios WHERE id_subtema = id_subtema_nuevo AND tipo = tipo_ejercicio) AS tabla_ejercicios_cuenta)) 
+      (SELECT COUNT(*) FROM (SELECT 
+      e.id
+    FROM 
+      ejercicios e
+    LEFT JOIN 
+      practicas p 
+      ON 
+      e.id = p.id_ejercicio AND p.id_estudiante = id_estudiante_nuevo
+    WHERE 
+      (p.id IS NULL OR 
+      p.correcto = false OR 
+      p.correcto IS NULL) AND 
+      e.tipo = tipo_ejercicio AND 
+      e.id_subtema = id_subtema_nuevo) AS tabla_ejercicios_cuenta)) 
       LIMIT 1);
     INSERT INTO practicas (id_estudiante, id_ejercicio)
     VALUES (id_estudiante_nuevo, id_ejercicio_nuevo);
@@ -206,6 +219,7 @@ BEGIN
 END;
 $$;
 
+  -- Asignar un ejercicio de práctica aleatorio a un estudiante de un subtema y tipo específicos (como parte de su práctica libre)
 CREATE OR REPLACE PROCEDURE agregarPracticaRandLibre(IN id_estudiante_nuevo VARCHAR(10), IN id_subtema_nuevo VARCHAR(20), IN tipo_ejercicio TEXT)
 LANGUAGE plpgsql
 AS $$
@@ -226,7 +240,8 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para agregar estudiantes a un grupo
+
+  -- Crear la relación de un grupo con un estudiante (inscripción)
 CREATE OR REPLACE PROCEDURE agregarEstudianteGrupo(IN codigo_grupo TEXT, IN id_estudiante_nuevo VARCHAR(10))
 LANGUAGE plpgsql
 AS $$
@@ -240,7 +255,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para agregar ejercicios a una actividad
+  -- Crear la relación de un varios ejercicios hacia una actividad (asociación)
 CREATE OR REPLACE PROCEDURE agregarEjercicioAct(IN id_actividad_nuevo INT, VARIADIC id_ejercicio_nuevo VARCHAR(20)[])
 LANGUAGE plpgsql
 AS $$
@@ -256,8 +271,29 @@ BEGIN
 END;
 $$;
 
+-- Agregar una nueva actividad incluyendo los ejercicios relacionados.
+CREATE OR REPLACE PROCEDURE agregarActividadConEjercicios(IN titulo_actividad TEXT, IN inicio_actividad TIMESTAMP, IN fin_actividad TIMESTAMP, IN intentos_actividad INT, IN bloqueo_actividad BOOLEAN, IN disponible_actividad BOOLEAN, IN visible_actividad BOOLEAN, IN id_grupo_actividad INTEGER, id_ejercicio_nuevo VARCHAR(20)[])
+LANGUAGE plpgsql
+AS $$
+DECLARE 
+id_creada INT;
+id_iter varchar(20);
+BEGIN
+    INSERT INTO actividades (titulo, inicio, fin, intentos, bloqueo, disponible, visible, id_grupo)
+    VALUES (titulo_actividad, inicio_actividad, fin_actividad, intentos_actividad, bloqueo_actividad, disponible_actividad, visible_actividad, id_grupo_actividad)
+    RETURNING id INTO id_creada;
+    FOREACH id_iter IN ARRAY id_ejercicio_nuevo
+    LOOP
+        INSERT INTO actividades_ejercicios (id_actividad, id_ejercicio)
+        VALUES (id_creada, id_iter);
+    END LOOP;
+    COMMIT;
+END;
+$$;
+
   -- ================== ACTUALIZACIONES ==================
-  -- Procedimiento para actualizar la visibilidad de un grupo
+
+  -- Cambiar la visibilidad de un grupo
 CREATE OR REPLACE PROCEDURE cambiarVisibilidadGrupo(IN id_grupo INTEGER, IN visible_grupo BOOLEAN)
 LANGUAGE plpgsql
 AS $$
@@ -267,7 +303,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para actualizar la autorizacion de un ejercicio
+  -- Cambiar la autorización de un ejercicio
 CREATE OR REPLACE PROCEDURE cambiarAutorizacionEjercicio(IN id_ejercicio VARCHAR(20), IN autorizado_ejercicio BOOLEAN)
 LANGUAGE plpgsql
 AS $$
@@ -277,6 +313,7 @@ BEGIN
 END;
 $$;
 
+  -- Actualizar la información de un ejercicio
 CREATE OR REPLACE PROCEDURE actualizarEjercicio(IN id_ejercicio_actual VARCHAR(20), IN autorizado_ejercicio BOOLEAN, IN tipo_ejercicio TEXT, IN archivo_ejercicio JSON, id_subtema_ejercicio VARCHAR(20))
 LANGUAGE plpgsql
 AS $$
@@ -313,7 +350,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para actualizar editar la informacion de una actividad
+  -- Cambiar la información de una actividad
 CREATE OR REPLACE PROCEDURE cambiarInformacionActividad(IN id_actividad INTEGER, IN titulo_actividad TEXT, IN inicio_actividad TIMESTAMP, IN fin_actividad TIMESTAMP, IN intentos_actividad TIMESTAMP,IN bloqueo_actividad BOOLEAN, IN disponible_actividad BOOLEAN, IN visible_actividad BOOLEAN)
 LANGUAGE plpgsql
 AS $$
@@ -329,7 +366,34 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para entregar un intento
+  -- Cambiar la información de una actividad incluyendo los ejercicios relacionados
+CREATE OR REPLACE PROCEDURE actualizarActividadConEjercicios(IN id_actividad_nuevo INT, IN titulo_actividad TEXT, IN inicio_actividad TIMESTAMP, IN fin_actividad TIMESTAMP, IN intentos_actividad INT, IN bloqueo_actividad BOOLEAN, IN disponible_actividad BOOLEAN, IN visible_actividad BOOLEAN, id_ejercicio_nuevo VARCHAR(20)[])
+LANGUAGE plpgsql
+AS $$
+DECLARE 
+id_iter varchar(20);
+BEGIN
+    UPDATE actividades SET 
+    titulo = titulo_actividad,       
+    inicio = inicio_actividad,
+    fin = fin_actividad,
+    intentos = intentos_actividad,
+    bloqueo = bloqueo_actividad,
+    disponible = disponible_actividad,
+    visible = visible_actividad
+    WHERE (id = id_actividad_nuevo);
+    DELETE FROM actividades_ejercicios WHERE (id_actividad = id_actividad_nuevo);
+    FOREACH id_iter IN ARRAY id_ejercicio_nuevo
+    LOOP
+      INSERT INTO actividades_ejercicios (id_actividad, id_ejercicio)
+      VALUES (id_actividad_nuevo, id_iter)
+      ON CONFLICT DO NOTHING;
+    END LOOP;
+    COMMIT;
+END;
+$$;
+
+  -- Actualizar la entrega de un intento
 CREATE OR REPLACE PROCEDURE entregarIntento(IN id_intento_nuevo INTEGER)
 LANGUAGE plpgsql
 AS $$
@@ -346,7 +410,7 @@ numero_incorrectos = (SELECT COUNT(*) FROM respuestas WHERE id_intento = id_inte
 END;
 $$;
 
-  -- Procedimiento para registrar un cambio de pestaña
+  -- Registrar un nuevo cambio de pestaña
 CREATE OR REPLACE PROCEDURE registrarCambio(IN id_cambio INTEGER)
 LANGUAGE plpgsql
 AS $$
@@ -356,7 +420,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para actualiar la respuesta del estudiante
+  -- Actualizar la respuesta a un ejercicio (como parte de una actividad asignada por un profesor)
 CREATE OR REPLACE PROCEDURE actualizarRespuesta(IN id_respuesta INTEGER, IN respuesta_nueva JSON)
 LANGUAGE plpgsql
 AS $$
@@ -366,7 +430,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para actualiar la respuesta del estudiante
+  -- Cambiar la calificación de una respuesta (como parte de una actividad asignada por un profesor)
 CREATE OR REPLACE PROCEDURE actualizarRespuestaCorrecta(IN id_respuesta INTEGER, IN correcto_respuesta BOOLEAN)
 LANGUAGE plpgsql
 AS $$
@@ -376,7 +440,7 @@ BEGIN
 END;
 $$;
 
-  -- Procedimiento para actualiar la respuesta del estudiante
+  -- Actualiza el estado de un ejercicio de práctica (ruta de aprendizaje y práctica)
 CREATE OR REPLACE PROCEDURE actualizarPractica(IN id_nuevo INT, IN respuesta_nueva JSON, IN correcto_nueva BOOLEAN)
 LANGUAGE plpgsql
 AS $$
@@ -408,7 +472,10 @@ BEGIN
 END;
 $$;
 
+  -- ################## FUNCIONES ##################
   -- ================== CONSULTAS ==================
+
+  -- Obtener todos los ejercicios que cumplan con diferentes autores, subtemas, tipos, dificultades, autorizaciones.
 CREATE OR REPLACE FUNCTION obtenerEjercicios(
   autores TEXT[], 
   subtemas TEXT[], 
@@ -416,11 +483,11 @@ CREATE OR REPLACE FUNCTION obtenerEjercicios(
   dificultades TEXT[],
   autorizados BOOL[]
   )
-RETURNS TABLE (id_resultado VARCHAR(20), titulo TEXT, autor TEXT, subtema TEXT, tipo_resultado TEXT, dificultad TEXT, autorizado_resultado BOOL) AS
+RETURNS TABLE (id_resultado VARCHAR(20), titulo TEXT, autor TEXT, subtema TEXT, tipo_resultado TEXT, dificultad TEXT, autorizado_resultado BOOL, id_autor VARCHAR(10)) AS
 $$
 BEGIN
     RETURN QUERY SELECT
-     e.id, e.archivo->>'title', e.archivo->>'author', s.nombre, e.tipo, e.archivo->>'difficulty', e.autorizado 
+     e.id, e.archivo->>'title', e.archivo->>'author', s.nombre, e.tipo, e.archivo->>'difficulty', e.autorizado, e.id_autor 
      FROM 
      ejercicios e 
      JOIN 
@@ -437,6 +504,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+  -- Obtener todos los ejercicios que cumplan con diferentes autores, subtemas, tipos, dificultades, autorizaciones. Versión para el docente.
+CREATE OR REPLACE FUNCTION obtenerEjerciciosDocente(
+  autores TEXT[], 
+  subtemas TEXT[], 
+  tipos VARCHAR(20)[], 
+  dificultades TEXT[],
+  autorizados BOOL[],
+  id_docente VARCHAR(10)
+  )
+RETURNS TABLE (id_resultado VARCHAR(20), titulo TEXT, autor TEXT, subtema TEXT, tipo_resultado TEXT, dificultad TEXT, autorizado_resultado BOOL, id_autor VARCHAR(10)) AS
+$$
+BEGIN
+    RETURN QUERY SELECT
+     e.id, e.archivo->>'title', e.archivo->>'author', s.nombre, e.tipo, e.archivo->>'difficulty', e.autorizado, e.id_autor 
+     FROM 
+     ejercicios e 
+     JOIN 
+     subtemas s 
+     ON 
+     e.id_subtema = s.id
+     WHERE
+     (autores = '{}' OR e.archivo->>'author' = ANY(autores)) AND
+     (subtemas = '{}' OR s.nombre = ANY(subtemas)) AND
+     (tipos = '{}' OR e.tipo = ANY(tipos)) AND
+     (dificultades = '{}' OR e.archivo->>'difficulty' = ANY(dificultades)) AND
+     (autorizados = '{}' OR e.autorizado = ANY(autorizados)) AND
+     (e.autorizado = true OR e.id_autor = id_docente) AND
+     e.tipo != 'Aleatorio';
+END;
+$$ LANGUAGE plpgsql;
+
+  -- Obtener todas las actividades pendientes de todos los grupos de un estudiante en particular.
 CREATE OR REPLACE FUNCTION obtenerActividadesEstudiante(
   id_estudiante_entrada VARCHAR(10)
 )
@@ -465,6 +564,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+  -- Obtener resumen general de todos los resultados e intentos de las actividades que ha resuelto un estudiante en particular.
 CREATE OR REPLACE FUNCTION obtenerResumenActividadesEstudiante(
   id_estudiante_entrada VARCHAR(10)
 )
@@ -503,6 +603,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+  -- Obtener el JSON de todos los ejercicios de una actividad junto con el JSON de la respuesta hasta el momento del estudiante a esa actividad.
 CREATE OR REPLACE FUNCTION obtenerEjerciciosRespuestas(
   id_intento_entrada INT
 )
@@ -529,6 +630,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+  -- Obtener el ID de un ejercicio al azar de acuerdo con parámetros de subtema, tipo y dificultad.
 CREATE OR REPLACE FUNCTION obtenerEjercicioAleatorioActividad(
   id_subtema_entrada VARCHAR(20),
   tipo_entrada TEXT,
@@ -550,8 +652,130 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+  -- Obtener todas las actividades de un grupo en particular.
+CREATE OR REPLACE FUNCTION obtenerActividadesGrupo(
+  id_grupo_entrada INT
+)
+RETURNS TABLE (
+  id INT,
+  titulo TEXT,
+  fecha TIMESTAMP,
+  total_intentos INT,
+  promedio_correctas INT,
+  total_ejercicios INT
+) AS $$
+BEGIN
+    RETURN QUERY SELECT 
+    a.id, a.titulo, a.fin,
+    CAST(COUNT(DISTINCT i.id) AS INT) AS total_intentos,
+    CAST(AVG(i.correctos) AS INT) AS promedio_correctas,
+    CAST((SELECT COUNT(DISTINCT ae.id_ejercicio)
+         FROM actividades_ejercicios ae
+         WHERE ae.id_actividad = a.id) AS INT)  AS total_ejercicios
+    FROM
+        actividades a
+        JOIN grupos g ON a.id_grupo = g.id
+        FULL JOIN estudiantes_grupos eg ON g.id = eg.id_grupo
+        FULL JOIN intentos i ON a.id = i.id_actividad
+    WHERE
+        g.id = id_grupo_entrada
+    GROUP BY
+        a.id,
+        a.titulo,
+        g.id;
+    RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
+
+  -- ================== OTROS ==================
+
+  -- Agrega un ejercicio y regresa su ID generada como atributo
+CREATE OR REPLACE FUNCTION agregarIncluirEjercicio(IN autorizado_ejercicio BOOLEAN, IN tipo_ejercicio TEXT, IN archivo_ejercicio JSON, id_subtema_ejercicio VARCHAR(20), id_autor_ejercicio VARCHAR(10))
+RETURNS VARCHAR(20)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+iniciales_tipo VARCHAR(2);
+nombe_secuencia TEXT;
+numero_ejercicio INTEGER;
+id_ejercicio VARCHAR(20);
+BEGIN
+    IF tipo_ejercicio = 'Opción múltiple' THEN
+      iniciales_tipo = 'OM';
+    ELSIF tipo_ejercicio = 'Código' THEN
+      iniciales_tipo = 'C';
+    ELSE
+      iniciales_tipo = 'A';
+    END IF;
+    nombe_secuencia := id_subtema_ejercicio || '_' || iniciales_tipo;
+    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS ' || nombe_secuencia|| ' START WITH 1';
+    EXECUTE 'SELECT nextval(' || quote_literal(nombe_secuencia) ||')'
+    INTO numero_ejercicio;
+    id_ejercicio := nombe_secuencia || '_' || numero_ejercicio;
+    INSERT INTO ejercicios (id, autorizado, tipo, archivo, id_subtema, id_autor)
+    VALUES (id_ejercicio, autorizado_ejercicio, tipo_ejercicio, archivo_ejercicio, id_subtema_ejercicio, id_autor_ejercicio);
+    
+    RETURN id_ejercicio;
+END;
+$$;
+
+  -- Actualiza un ejercicio y regresa su ID generada como atributo
+CREATE OR REPLACE FUNCTION actualizarIncluirEjercicio(IN id_ejercicio_actual VARCHAR(20), IN autorizado_ejercicio BOOLEAN, IN tipo_ejercicio TEXT, IN archivo_ejercicio JSON, id_subtema_ejercicio VARCHAR(20))
+RETURNS VARCHAR(20)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+id_subtema_actual VARCHAR(20);
+iniciales_tipo VARCHAR(2);
+nombe_secuencia TEXT;
+numero_ejercicio INTEGER;
+id_ejercicio VARCHAR(20);
+BEGIN
+    id_subtema_actual = (SELECT id_subtema FROM ejercicios WHERE id = id_ejercicio_actual);
+    IF id_subtema_actual IS DISTINCT FROM id_subtema_ejercicio THEN
+      IF tipo_ejercicio = 'Opción múltiple' THEN
+        iniciales_tipo = 'OM';
+      ELSIF tipo_ejercicio = 'Código' THEN
+        iniciales_tipo = 'C';
+      ELSE
+        iniciales_tipo = 'A';
+      END IF;
+      nombe_secuencia := id_subtema_ejercicio || '_' || iniciales_tipo;
+      EXECUTE 'CREATE SEQUENCE IF NOT EXISTS ' || nombe_secuencia|| ' START WITH 1';
+      EXECUTE 'SELECT nextval(' || quote_literal(nombe_secuencia) ||')'
+      INTO numero_ejercicio;
+      id_ejercicio := nombe_secuencia || '_' || numero_ejercicio;
+      UPDATE ejercicios SET id = id_ejercicio WHERE (id = id_ejercicio_actual);
+      id_ejercicio_actual := id_ejercicio;
+    END IF;
+    UPDATE ejercicios SET autorizado = autorizado_ejercicio WHERE (id = id_ejercicio_actual);
+    UPDATE ejercicios SET tipo = tipo_ejercicio WHERE (id = id_ejercicio_actual);
+    UPDATE ejercicios SET archivo = archivo_ejercicio WHERE (id = id_ejercicio_actual);
+    UPDATE ejercicios SET id_subtema = id_subtema_ejercicio WHERE (id = id_ejercicio_actual);
+
+    RETURN id_ejercicio_actual;
+END;
+$$;
+
+  -- Agrega un intento y regresa su ID generada como atributo
+CREATE OR REPLACE FUNCTION agregarObtenerIntento(IN id_estudiante_intento VARCHAR(10), IN id_actividad_intento INTEGER)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    intento_id INT;
+BEGIN
+    INSERT INTO intentos (id_estudiante, id_actividad)
+    VALUES (id_estudiante_intento, id_actividad_intento)
+    RETURNING id INTO intento_id;
+
+    RETURN intento_id;
+END;
+$$;
   -- ################## TRIGGERS ##################
-  -- Trigger para generar respuestas vacías para cada ejercicio asociado a una actividad cuando se cree un nuevo intento
+
+  -- Generación de respuestas vacías para todos los ejercicios de una actividad.
 CREATE OR REPLACE FUNCTION crear_respuestas() RETURNS TRIGGER AS $$
 DECLARE
     id_ejercicio_nuevo VARCHAR(20);
@@ -587,7 +811,7 @@ AFTER INSERT ON intentos
 FOR EACH ROW
 EXECUTE FUNCTION crear_respuestas();
 
-  -- Trigger para cuando se actualice la fecha de fin de un intento marcarlo como tarde si  se pasa la hora
+  -- Revisión de entregas tardías de intentos para actividades
 CREATE OR REPLACE FUNCTION revisar_tarde() RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.fin >= (SELECT fin FROM actividades WHERE id = OLD.id_actividad) THEN
@@ -602,7 +826,7 @@ BEFORE UPDATE ON intentos
 FOR EACH ROW
 EXECUTE FUNCTION revisar_tarde();
 
-  -- Trigger para cuando un estudiante supera un subtema y progresa a otro
+  -- Control de la progresión del estudiante a través de su ruta de aprendizaje
 CREATE OR REPLACE FUNCTION progresar_estudiante() RETURNS TRIGGER AS $$
 DECLARE
   id_subtema_activo VARCHAR(20);
@@ -646,8 +870,7 @@ BEFORE UPDATE ON practicas
 FOR EACH ROW
 EXECUTE FUNCTION progresar_estudiante();
 
-  -- Trigger para cuando un estudiante se agrega a un grupo, revisa si el grupo es TC1028 y 
-  -- si es asi, lo asigna al primer tema con ejercicios
+  -- Inscripción de un estudiante al subtema inicial
 CREATE OR REPLACE FUNCTION inscribir_estudiante() RETURNS TRIGGER AS $$
 DECLARE
   id_materia_grupo VARCHAR(20);
@@ -666,3 +889,18 @@ CREATE TRIGGER inscripcion_estudiante
 AFTER INSERT ON estudiantes_grupos
 FOR EACH ROW
 EXECUTE FUNCTION inscribir_estudiante();
+
+  -- Inscripción de un estudiante a un grupo predeterminado de práctica
+CREATE OR REPLACE FUNCTION inscribir_fantasma() RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO estudiantes_grupos (id_estudiante, id_grupo)
+  VALUES (NEW.id, 1)
+  ON CONFLICT DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER inscripcion_fantasma
+AFTER INSERT ON estudiantes
+FOR EACH ROW
+EXECUTE FUNCTION inscribir_fantasma();

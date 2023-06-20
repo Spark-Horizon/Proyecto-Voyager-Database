@@ -68,19 +68,24 @@ CREATE TABLE ejercicios (
     tipo TEXT,
     archivo JSON,
     id_subtema VARCHAR(20),
+    id_autor VARCHAR(10) DEFAULT NULL,
     FOREIGN KEY (id_subtema) 
         REFERENCES subtemas (id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    FOREIGN KEY (id_autor) 
+        REFERENCES docentes (id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
 
 
--- Falta la logica de entregar todos los intentos relacionados cuando se pase la fecha limite y de bloquear que se puedan crear intentos
 CREATE TABLE actividades (
     id SERIAL PRIMARY KEY,
     titulo TEXT,
     inicio TIMESTAMP,
     fin TIMESTAMP,
+    intentos INT,
     bloqueo BOOLEAN,
     disponible BOOLEAN,
     visible BOOLEAN,
